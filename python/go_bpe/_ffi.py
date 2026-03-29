@@ -6,7 +6,12 @@ _dir = os.path.dirname(__file__)
 _ext = "dylib" if sys.platform == "darwin" else "so"
 _lib = ctypes.CDLL(os.path.join(_dir, f"libbpe.{_ext}"))
 
-_lib.BPE_Train.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+_lib.BPE_Train.argtypes = [
+    ctypes.c_char_p,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_char_p,
+]
 _lib.BPE_Train.restype = ctypes.c_int
 
 _lib.BPE_Load.argtypes = [ctypes.c_char_p]

@@ -5,6 +5,7 @@ package main
 */
 import "C"
 import (
+	"encoding/json"
 	"sync"
 	"unsafe"
 
@@ -34,9 +35,17 @@ func getInstance(handle C.int) *gobpe.BPETokenizer {
 }
 
 //export BPE_Train
-func BPE_Train(corpus *C.char, corpusLen C.int, maxVocabSize C.int) C.int {
+func BPE_Train(corpus *C.char, corpusLen C.int, maxVocabSize C.int, specialTokensJSON *C.char) C.int {
 	goCorpus := C.GoStringN(corpus, corpusLen)
-	t := gobpe.NewBPETokenizer(goCorpus, int(maxVocabSize))
+
+	var specialTokens []string
+	if specialTokensJSON != nil {
+		if err := json.Unmarshal([]byte(C.GoString(specialTokensJSON)), &specialTokens); err != nil {
+			return -1
+		}
+	}
+
+	t := gobpe.NewBPETokenizer(goCorpus, int(maxVocabSize), specialTokens)
 	return storeInstance(t)
 }
 

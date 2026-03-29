@@ -1,4 +1,6 @@
 import ctypes
+import json
+
 from ._ffi import _lib
 
 
@@ -7,9 +9,16 @@ class BPETokenizer:
         self._handle = handle
 
     @classmethod
-    def train(cls, corpus: str, max_vocab_size: int = 256) -> "BPETokenizer":
+    def train(
+        cls, corpus: str, max_vocab_size: int, special_tokens: list[str]
+    ) -> "BPETokenizer":
         corpus_bytes = corpus.encode("utf-8")
-        handle = _lib.BPE_Train(corpus_bytes, len(corpus_bytes), max_vocab_size)
+        special_tokens_json = (
+            json.dumps(special_tokens).encode("utf-8") if special_tokens else None
+        )
+        handle = _lib.BPE_Train(
+            corpus_bytes, len(corpus_bytes), max_vocab_size, special_tokens_json
+        )
         if handle < 0:
             raise RuntimeError("BPE training failed")
         return cls(handle)
@@ -28,9 +37,7 @@ class BPETokenizer:
 
     def encode(self, text: str) -> list[int]:
         out_len = ctypes.c_int(0)
-        ptr = _lib.BPE_Encode(
-            self._handle, text.encode("utf-8"), ctypes.byref(out_len)
-        )
+        ptr = _lib.BPE_Encode(self._handle, text.encode("utf-8"), ctypes.byref(out_len))
         if out_len.value == 0:
             return []
         try:
