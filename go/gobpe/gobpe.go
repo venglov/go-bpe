@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 )
 
@@ -25,7 +26,7 @@ type BPETokenizer struct {
 }
 
 // NewBPETokenizer initialize BPETokenizer with training corpus and maxVocabSize
-func NewBPETokenizer(corpus string, maxVocabSize int) *BPETokenizer {
+func NewBPETokenizer(corpus string, maxVocabSize int, specialTokens []string) *BPETokenizer {
 	vocab := make(map[string]int, 2048)
 	merges := make(map[[2]string]int)
 
@@ -48,6 +49,9 @@ func NewBPETokenizer(corpus string, maxVocabSize int) *BPETokenizer {
 	var words []*wordEntry
 
 	for word, count := range vocabFreq {
+		if slices.Contains(specialTokens, word) {
+			continue
+		}
 		tokens := make([]string, 0, len(word))
 		for i := 0; i < len(word); i++ {
 			tokens = append(tokens, string([]byte{word[i]}))
@@ -55,7 +59,7 @@ func NewBPETokenizer(corpus string, maxVocabSize int) *BPETokenizer {
 		words = append(words, &wordEntry{tokens: tokens, count: count})
 	}
 
-	for len(vocab) < maxVocabSize {
+	for len(vocab) < maxVocabSize-len(specialTokens) {
 		pairsFreq := make(map[[2]string]int)
 		var bestCount int
 		var bestKey [2]string
@@ -82,6 +86,10 @@ func NewBPETokenizer(corpus string, maxVocabSize int) *BPETokenizer {
 		for _, entry := range words {
 			entry.tokens = applyMerge(entry.tokens, bestKey)
 		}
+	}
+
+	for _, st := range specialTokens {
+		vocab[st] = len(vocab)
 	}
 
 	return &BPETokenizer{vocab: vocab, merges: merges}

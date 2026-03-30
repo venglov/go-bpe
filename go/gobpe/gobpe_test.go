@@ -8,7 +8,7 @@ import (
 const smallCorpus = "low low low low low lower lower newest newest newest newest newest newest widest widest widest"
 
 func TestNewBPETokenizer_BaseVocab(t *testing.T) {
-	bpe := NewBPETokenizer("", 256)
+	bpe := NewBPETokenizer("", 256, []string{})
 	// With an empty corpus and maxVocabSize==256, we get exactly the 256 byte tokens.
 	// Tokenizing a single known byte should return its ASCII value.
 	tokens := bpe.Encode("A")
@@ -21,7 +21,7 @@ func TestNewBPETokenizer_BaseVocab(t *testing.T) {
 }
 
 func TestTokenize_Deterministic(t *testing.T) {
-	bpe := NewBPETokenizer(smallCorpus, 300)
+	bpe := NewBPETokenizer(smallCorpus, 300, []string{})
 	text := "low lower newest widest"
 	first := bpe.Encode(text)
 	second := bpe.Encode(text)
@@ -36,7 +36,7 @@ func TestTokenize_Deterministic(t *testing.T) {
 }
 
 func TestTokenize_CompressionOnTrainingData(t *testing.T) {
-	bpe := NewBPETokenizer(smallCorpus, 300)
+	bpe := NewBPETokenizer(smallCorpus, 300, []string{})
 	tokens := bpe.Encode(smallCorpus)
 	// A trained tokenizer must produce fewer tokens than bytes for a repetitive corpus.
 	if len(tokens) >= len(smallCorpus) {
@@ -45,7 +45,7 @@ func TestTokenize_CompressionOnTrainingData(t *testing.T) {
 }
 
 func TestTokenize_EmptyString(t *testing.T) {
-	bpe := NewBPETokenizer(smallCorpus, 300)
+	bpe := NewBPETokenizer(smallCorpus, 300, []string{})
 	tokens := bpe.Encode("")
 	if len(tokens) != 0 {
 		t.Fatalf("expected empty result for empty input, got %v", tokens)
@@ -53,7 +53,7 @@ func TestTokenize_EmptyString(t *testing.T) {
 }
 
 func TestTokenize_UnseenText(t *testing.T) {
-	bpe := NewBPETokenizer(smallCorpus, 300)
+	bpe := NewBPETokenizer(smallCorpus, 300, []string{})
 	// Text not in the training corpus should still tokenize (falls back to byte tokens).
 	tokens := bpe.Encode("hello world")
 	if len(tokens) == 0 {
@@ -62,7 +62,7 @@ func TestTokenize_UnseenText(t *testing.T) {
 }
 
 func TestTokenize_NonASCII(t *testing.T) {
-	bpe := NewBPETokenizer(smallCorpus, 300)
+	bpe := NewBPETokenizer(smallCorpus, 300, []string{})
 	tokens := bpe.Encode("café naïve")
 	if len(tokens) == 0 {
 		t.Fatal("expected non-empty token list for non-ASCII text")
@@ -106,8 +106,8 @@ func TestApplyMerge_ConsecutivePairs(t *testing.T) {
 
 func TestNewBPETokenizer_VocabGrows(t *testing.T) {
 	// With maxVocabSize > 256, merges should be learned and vocab should grow.
-	bpe256 := NewBPETokenizer(smallCorpus, 256)
-	bpe300 := NewBPETokenizer(smallCorpus, 300)
+	bpe256 := NewBPETokenizer(smallCorpus, 256, []string{})
+	bpe300 := NewBPETokenizer(smallCorpus, 300, []string{})
 
 	tokens256 := bpe256.Encode(smallCorpus)
 	tokens300 := bpe300.Encode(smallCorpus)
@@ -120,7 +120,7 @@ func TestNewBPETokenizer_VocabGrows(t *testing.T) {
 }
 
 func TestDecode_RoundTrip(t *testing.T) {
-	bpe := NewBPETokenizer(smallCorpus, 300)
+	bpe := NewBPETokenizer(smallCorpus, 300, []string{})
 	text := "low lower newest widest"
 	tokens := bpe.Encode(text)
 	decoded := bpe.Decode(tokens)
@@ -130,7 +130,7 @@ func TestDecode_RoundTrip(t *testing.T) {
 }
 
 func TestDecode_Empty(t *testing.T) {
-	bpe := NewBPETokenizer(smallCorpus, 300)
+	bpe := NewBPETokenizer(smallCorpus, 300, []string{})
 	decoded := bpe.Decode([]int{})
 	if decoded != "" {
 		t.Fatalf("expected empty string, got %q", decoded)
@@ -138,7 +138,7 @@ func TestDecode_Empty(t *testing.T) {
 }
 
 func TestSaveLoad_RoundTrip(t *testing.T) {
-	bpe := NewBPETokenizer(smallCorpus, 300)
+	bpe := NewBPETokenizer(smallCorpus, 300, []string{})
 	text := "low lower newest widest"
 	originalTokens := bpe.Encode(text)
 
@@ -181,7 +181,7 @@ func TestTokenize_WithVerdictCorpus(t *testing.T) {
 		t.Skip("the-verdict.txt not found, skipping integration test")
 	}
 	corpus := string(data)
-	bpe := NewBPETokenizer(corpus, 512)
+	bpe := NewBPETokenizer(corpus, 512, []string{})
 
 	tokens := bpe.Encode(corpus)
 	if len(tokens) == 0 {

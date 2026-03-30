@@ -32,3 +32,5 @@ go.work.sum
 # .vscode/
 
 __pycache__
+*.egg-info
+build
