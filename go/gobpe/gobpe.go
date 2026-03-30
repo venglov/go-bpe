@@ -25,6 +25,11 @@ type BPETokenizer struct {
 	merges map[[2]string]int
 }
 
+type Node struct {
+	next *Node
+	val  string
+}
+
 // NewBPETokenizer initialize BPETokenizer with training corpus and maxVocabSize
 func NewBPETokenizer(corpus string, maxVocabSize int, specialTokens []string) *BPETokenizer {
 	vocab := make(map[string]int, 2048)
@@ -43,8 +48,8 @@ func NewBPETokenizer(corpus string, maxVocabSize int, specialTokens []string) *B
 	}
 
 	type wordEntry struct {
-		tokens []string
-		count  int
+		head  *Node
+		count int
 	}
 	var words []*wordEntry
 
@@ -52,11 +57,13 @@ func NewBPETokenizer(corpus string, maxVocabSize int, specialTokens []string) *B
 		if slices.Contains(specialTokens, word) {
 			continue
 		}
-		tokens := make([]string, 0, len(word))
+		head := &Node{}
+		tokens := head
 		for i := 0; i < len(word); i++ {
-			tokens = append(tokens, string([]byte{word[i]}))
+			tokens.next = &Node{val: string([]byte{word[i]})}
+			tokens = tokens.next
 		}
-		words = append(words, &wordEntry{tokens: tokens, count: count})
+		words = append(words, &wordEntry{head: head, count: count})
 	}
 
 	for len(vocab) < maxVocabSize-len(specialTokens) {
@@ -65,14 +72,16 @@ func NewBPETokenizer(corpus string, maxVocabSize int, specialTokens []string) *B
 		var bestKey [2]string
 
 		for _, entry := range words {
-			for i := 0; i < len(entry.tokens)-1; i++ {
-				key := [2]string{entry.tokens[i], entry.tokens[i+1]}
+			token := entry.head.next
+			for token != nil && token.next != nil {
+				key := [2]string{token.val, token.next.val}
 				pairsFreq[key] += entry.count
 
 				if pairsFreq[key] > bestCount {
 					bestCount = pairsFreq[key]
 					bestKey = key
 				}
+				token = token.next
 			}
 		}
 
@@ -84,7 +93,7 @@ func NewBPETokenizer(corpus string, maxVocabSize int, specialTokens []string) *B
 		vocab[bestKey[0]+bestKey[1]] = len(vocab)
 
 		for _, entry := range words {
-			entry.tokens = applyMerge(entry.tokens, bestKey)
+			applyMerge(entry.head, bestKey)
 		}
 	}
 
@@ -102,18 +111,20 @@ func (bpe *BPETokenizer) Encode(corpus string) []int {
 	preTokens := gpt4Regex.FindAll(corpusBytes, -1)
 
 	for _, wordBytes := range preTokens {
-		tokens := make([]string, 0, len(wordBytes))
+		head := &Node{}
+		tokens := head
 		for i := 0; i < len(wordBytes); i++ {
-			tokens = append(tokens, string([]byte{wordBytes[i]}))
+			tokens.next = &Node{val: string([]byte{wordBytes[i]})}
+			tokens = tokens.next
 		}
 
-		for len(tokens) > 1 {
+		for {
 			minRank := math.MaxInt
 			var bestPair [2]string
 			var pairFound bool
 
-			for i := 0; i < len(tokens)-1; i++ {
-				pair := [2]string{tokens[i], tokens[i+1]}
+			for tokens := head.next; tokens != nil && tokens.next != nil; tokens = tokens.next {
+				pair := [2]string{tokens.val, tokens.next.val}
 				if rank, exists := bpe.merges[pair]; exists {
 					if rank < minRank {
 						minRank = rank
@@ -127,11 +138,11 @@ func (bpe *BPETokenizer) Encode(corpus string) []int {
 				break
 			}
 
-			tokens = applyMerge(tokens, bestPair)
+			applyMerge(head, bestPair)
 		}
 
-		for _, t := range tokens {
-			result = append(result, bpe.vocab[t])
+		for tokens := head.next; tokens != nil; tokens = tokens.next {
+			result = append(result, bpe.vocab[tokens.val])
 		}
 	}
 
@@ -229,21 +240,13 @@ func LoadBPETokenizer(path string) (*BPETokenizer, error) {
 	return &BPETokenizer{vocab: vocab, merges: merges}, nil
 }
 
-func applyMerge(tokens []string, pair [2]string) []string {
-	if len(tokens) < 2 {
-		return tokens
-	}
-	newTokens := make([]string, 0, len(tokens))
-	i := 0
-
-	for i < len(tokens) {
-		if i < len(tokens)-1 && tokens[i] == pair[0] && tokens[i+1] == pair[1] {
-			newTokens = append(newTokens, pair[0]+pair[1])
-			i += 2
+func applyMerge(head *Node, pair [2]string) {
+	for node := head.next; node != nil && node.next != nil; {
+		if node.val == pair[0] && node.next.val == pair[1] {
+			node.val = pair[0] + pair[1]
+			node.next = node.next.next
 		} else {
-			newTokens = append(newTokens, tokens[i])
-			i++
+			node = node.next
 		}
 	}
-	return newTokens
 }
